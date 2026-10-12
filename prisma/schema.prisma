@@ -1,0 +1,65 @@
+// Lab Station — database schema.
+// SQLite by default (file DB, zero-config). To move to Postgres:
+//   1. provider = "postgresql", new DATABASE_URL
+//   2. `npx prisma migrate dev` (Json fields work on both providers)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model MenuItem {
+  id            String   @id
+  name          String
+  variant       String?
+  category      String
+  description   String   @default("")
+  ingredients   Json     @default("[]")
+  price         Float?
+  priceVerified Boolean  @default(false)
+  image         String   @default("")
+  tags          Json     @default("[]")
+  spicyLevel    Int      @default(0)
+  featured      Boolean  @default(false)
+  available     Boolean  @default(true)
+  code          String   @default("")
+  sort          Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  customer  String   @default("")
+  phone     String   @default("")
+  type      String   @default("pickup")
+  address   String   @default("")
+  lines     Json     @default("[]")
+  total     Float    @default(0)
+  status    String   @default("new") // new | preparing | ready | done | cancelled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  key       String   @id // hours | promo | restaurant
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model AdminSession {
+  token     String   @id
+  userId    String
+  expiresAt DateTime
+}

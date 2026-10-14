@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 
 /** Admin: full menu including unavailable items. */
 export async function GET() {
-  const admin = await requireAdmin();
+  let admin = null;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable (demo mode)" }, { status: 503 });
+  }
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const rows = await db.menuItem.findMany({ orderBy: [{ sort: "asc" }, { name: "asc" }] });
   return NextResponse.json({ items: rows.map(toFrontend) });
@@ -16,7 +21,12 @@ export async function GET() {
 
 /** Admin: create a menu item. */
 export async function POST(req: Request) {
-  const admin = await requireAdmin();
+  let admin = null;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable (demo mode)" }, { status: 503 });
+  }
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let body: unknown;
   try {

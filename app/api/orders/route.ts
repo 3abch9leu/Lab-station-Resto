@@ -5,7 +5,7 @@ import { orderSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
-/** Public: place an order (validated, persisted). */
+/** Public: place an order (validated, persisted when a DB is configured). */
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -18,23 +18,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid order", issues: parsed.error.flatten() }, { status: 400 });
   }
   const o = parsed.data;
-  const order = await db.order.create({
-    data: {
-      customer: o.name,
-      phone: o.phone,
-      type: o.type,
-      address: o.address,
-      lines: o.lines,
-      total: o.total,
-      status: "new",
-    },
-  });
-  return NextResponse.json({ ok: true, id: order.id }, { status: 201 });
+  try {
+    const order = await db.order.create({
+      data: {
+        customer: o.name,
+        phone: o.phone,
+        type: o.type,
+        address: o.address,
+        lines: o.lines,
+        total: o.total,
+        status: "new",
+      },
+    });
+    return NextResponse.json({ ok: true, id: order.id }, { status: 201 });
+  } catch {
+    // Demo mode (no database): accept the order so WhatsApp flow still works.
+    const { randomUUID } = await import("node:crypto");
+    return NextResponse.json({ ok: true, id: `demo-${randomUUID()}`, demo: true }, { status: 201 });
+  }
 }
 
 /** Admin: list orders (newest first). */
 export async function GET(req: Request) {
-  const admin = await requireAdmin();
+  let admin = null;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable (demo mode)" }, { status: 503 });
+  }
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");

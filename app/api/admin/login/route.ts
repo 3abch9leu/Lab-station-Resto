@@ -15,7 +15,12 @@ export async function POST(req: Request) {
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid credentials" }, { status: 400 });
 
-  const user = await db.adminUser.findUnique({ where: { username: parsed.data.username } });
+  let user = null;
+  try {
+    user = await db.adminUser.findUnique({ where: { username: parsed.data.username } });
+  } catch {
+    return NextResponse.json({ error: "Database unavailable (demo mode — admin needs a database)" }, { status: 503 });
+  }
   // Constant-shape failure (no user enumeration, no timing oracle).
   const ok = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
   if (!user || !ok) {

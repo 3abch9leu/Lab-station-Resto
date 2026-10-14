@@ -7,7 +7,12 @@ export const dynamic = "force-dynamic";
 
 /** Admin: update order status. */
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
+  let admin = null;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable (demo mode)" }, { status: 503 });
+  }
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   let body: unknown;

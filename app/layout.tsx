@@ -46,7 +46,7 @@ const JSON_LD = {
   name: "Lab Station",
   servesCuisine: ["Burgers", "Tacos", "Smoked meats"],
   priceRange: "TND 10–40",
-  telephone: RESTAURANT.phone,
+  telephone: RESTAURANT.phones.map((p) => p.label).join(", "),
   email: RESTAURANT.email,
   address: {
     "@type": "PostalAddress",

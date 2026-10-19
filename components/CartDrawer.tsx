@@ -1,8 +1,11 @@
 "use client";
 
 import React from "react";
-import { useCart, useLang } from "./Providers";
+import { useCart, useLang, lineUnitPrice, type CartLine } from "./Providers";
 import { RESTAURANT } from "@/data/restaurant";
+import { SAUCES } from "@/data/menu";
+
+const sauceLabel = (id: string) => SAUCES.find((s) => s.id === id)?.label ?? id;
 
 export default function CartDrawer() {
   const { lines, setQty, remove, total, count, open, setOpen, clear } = useCart();
@@ -11,6 +14,7 @@ export default function CartDrawer() {
   const [phone, setPhone] = React.useState("");
   const [type, setType] = React.useState<"pickup" | "delivery">("pickup");
   const [address, setAddress] = React.useState("");
+  const [sendTo, setSendTo] = React.useState<string>(RESTAURANT.phones[0].whatsapp);
 
   React.useEffect(() => {
     if (!open) return;
@@ -24,56 +28,99 @@ export default function CartDrawer() {
   }, [open, setOpen]);
 
   const buildMessage = () => {
-    const rows = lines.map((l) => `${l.qty}x ${l.item.name}${l.item.price ? ` — ${(l.item.price * l.qty).toFixed(1)} DT` : ""}`).join("\n");
-    return (
-      `LAB STATION ORDER\n\nClient: ${name || "-"}\nTél: ${phone || "-"}\nType: ${type === "pickup" ? "Pickup / À emporter" : `Livraison — ${address}`}\n\nCommande:\n${rows}\n\nTotal: ${total.toFixed(1)} DT`
-    );
+    const rows = lines
+      .map((l) => {
+        const bits: string[] = [];
+        if (l.options?.size) bits.push(`[${l.options.size}]`);
+        if (l.options?.sauces?.length) bits.push(`sauce: ${l.options.sauces.map(sauceLabel).join(", ")}`);
+        if (l.options?.extras?.length) bits.push(`+ ${l.options.extras.map((e) => e.name).join(", ")}`);
+        const unit = lineUnitPrice(l);
+        return `${l.qty}x ${l.item.name}${bits.length ? " " + bits.join(" ") : ""} — ${(unit * l.qty).toFixed(1)} DT`;
+      })
+      .join("\n");
+    return `LAB STATION — COMMANDE
+
+Client: ${name || "-"}
+Tel: ${phone || "-"}
+Type: ${type === "pickup" ? "Retrait sur place" : `Livraison — ${address || "-"}`}
+
+Commande:
+${rows}
+
+TOTAL: ${total.toFixed(1)} DT`;
   };
 
-  const whatsappUrl = `https://wa.me/${RESTAURANT.whatsapp}?text=${encodeURIComponent(buildMessage())}`;
+  const whatsappUrl = `https://wa.me/${sendTo}?text=${encodeURIComponent(buildMessage())}`;
 
+  // Persist the order server-side, then hand off to WhatsApp.
   const confirmOrder = async () => {
     try {
       await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, type, address, lines: lines.map((l) => ({ id: l.item.id, qty: l.qty })), total }),
+        body: JSON.stringify({
+          name,
+          phone,
+          type,
+          address,
+          lines: lines.map((l) => ({ id: l.item.id, qty: l.qty })),
+          total,
+        }),
       });
     } catch {}
-    // Fallback: WhatsApp
-    window.open(whatsappUrl, "_blank", "noopener");
+    window.location.href = whatsappUrl;
   };
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={t("cart.title")}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden="true" />
       <aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-md flex-col border-l border-[#26282c] bg-[#0b0c0e]">
-        <div className="stripes h-1.5 w-full" aria-hidden />
+        <div className="stripes h-1.5 w-full" aria-hidden="true" />
         <div className="flex items-center justify-between p-5">
-          <h2 className="font-display text-3xl">{t("cart.title")} <span className="text-[#ffd400]">({count})</span></h2>
+          <h2 className="font-display text-3xl">
+            {t("cart.title")} <span className="text-[#ffd400]">({count})</span>
+          </h2>
           <button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-[#333] text-xl hover:bg-[#ffd400] hover:text-black" aria-label="Fermer le panier">×</button>
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto px-5 pb-4">
-          {lines.length === 0 && <p className="rounded-xl border border-dashed border-[#333] p-8 text-center text-neutral-400">{t("cart.empty")}</p>}
-          {lines.map((l) => (
-            <div key={l.item.id} className="flex items-center gap-3 rounded-xl border border-[#222] bg-[#121316] p-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-display truncate text-lg">{l.item.name}</p>
-                <p className="font-mono-lab text-[11px] tracking-widest text-[#ffd400]">
-                  {l.item.price === null ? "PRIX LABO" : `${l.item.price.toFixed(1)} DT`}
-                </p>
+          {lines.length === 0 && (
+            <p className="rounded-xl border border-dashed border-[#333] p-8 text-center text-neutral-400">{t("cart.empty")}</p>
+          )}
+          {lines.map((l: CartLine) => {
+            const key = [l.item.id, l.options?.size ?? "", (l.options?.sauces ?? []).slice().sort().join("+"), (l.options?.extras ?? []).map((e) => e.id).sort().join("+")].join("|");
+            const unit = lineUnitPrice(l);
+            return (
+              <div key={key} className="rounded-xl border border-[#222] bg-[#121316] p-3">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display truncate text-lg">
+                      {l.item.name}
+                      {l.options?.size && <span className="ml-2 rounded bg-[#ffd400] px-1.5 py-0.5 text-[10px] font-bold text-black">{l.options.size}</span>}
+                    </p>
+                    <p className="font-mono-lab text-[11px] tracking-widest text-[#ffd400]">
+                      {(unit * l.qty).toFixed(1)} DT
+                    </p>
+                    {(l.options?.sauces?.length || l.options?.extras?.length) && (
+                      <p className="mt-1 text-[11px] leading-snug text-neutral-400">
+                        {l.options?.sauces?.length ? `Sauce: ${l.options.sauces.map(sauceLabel).join(", ")}` : ""}
+                        {l.options?.sauces?.length && l.options?.extras?.length ? " • " : ""}
+                        {l.options?.extras?.length ? `+ ${l.options.extras.map((e) => e.name).join(", ")}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center rounded-full border border-[#333]" role="group" aria-label={`Quantité ${l.item.name}`}>
+                    <button onClick={() => setQty(key, l.qty - 1)} className="px-3 py-1.5 hover:text-[#ffd400]" aria-label="Diminuer">−</button>
+                    <span className="min-w-6 text-center font-bold">{l.qty}</span>
+                    <button onClick={() => setQty(key, l.qty + 1)} className="px-3 py-1.5 hover:text-[#ffd400]" aria-label="Augmenter">+</button>
+                  </div>
+                  <button onClick={() => remove(key)} className="text-neutral-500 hover:text-red-400" aria-label={`Retirer ${l.item.name}`}>✕</button>
+                </div>
               </div>
-              <div className="flex items-center rounded-full border border-[#333]" role="group" aria-label={`Quantité ${l.item.name}`}>
-                <button onClick={() => setQty(l.item.id, l.qty - 1)} className="px-3 py-1.5 hover:text-[#ffd400]" aria-label="Diminuer">−</button>
-                <span className="min-w-6 text-center font-bold">{l.qty}</span>
-                <button onClick={() => setQty(l.item.id, l.qty + 1)} className="px-3 py-1.5 hover:text-[#ffd400]" aria-label="Augmenter">+</button>
-              </div>
-              <button onClick={() => remove(l.item.id)} className="text-neutral-500 hover:text-red-400" aria-label={`Retirer ${l.item.name}`}>✕</button>
-            </div>
-          ))}
+            );
+          })}
 
           {lines.length > 0 && (
             <div className="space-y-3 rounded-xl border border-[#2a2c30] bg-[#101112] p-4">
@@ -100,6 +147,22 @@ export default function CartDrawer() {
                   <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-1 w-full rounded-lg border border-[#2c2e33] bg-black px-3 py-2 text-sm outline-none focus:border-[#ffd400]" autoComplete="street-address" />
                 </label>
               )}
+              {/* Which line receives the order */}
+              <div>
+                <span className="font-mono-lab text-[10px] tracking-widest text-neutral-400">ENVOYER LA COMMANDE À</span>
+                <div className="mt-1 flex gap-2" role="group" aria-label="Numéro WhatsApp">
+                  {RESTAURANT.phones.map((p) => (
+                    <button
+                      key={p.whatsapp}
+                      onClick={() => setSendTo(p.whatsapp)}
+                      aria-pressed={sendTo === p.whatsapp}
+                      className={`font-mono-lab flex-1 rounded-lg px-3 py-2 text-[11px] tracking-wider ${sendTo === p.whatsapp ? "bg-[#ffd400] font-bold text-black" : "border border-[#333] text-neutral-300"}`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -122,9 +185,13 @@ export default function CartDrawer() {
             >
               {t("cart.whatsapp")} →
             </button>
-            <a href={RESTAURANT.phoneHref} className="btn-ghost font-mono-lab block rounded-full px-6 py-3 text-center text-[13px] font-bold tracking-[0.2em]">
-              {t("cart.call")} — {RESTAURANT.phone}
-            </a>
+            <div className="grid grid-cols-2 gap-2">
+              {RESTAURANT.phones.map((p) => (
+                <a key={p.tel} href={`tel:${p.tel}`} className="btn-ghost font-mono-lab rounded-full px-4 py-3 text-center text-[12px] font-bold tracking-widest">
+                  {p.label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </aside>

@@ -32,6 +32,11 @@ export const menuItemSchema = z.object({
   ingredients: z.array(z.string().max(80)).max(30).default([]),
   price: z.number().min(0).max(10000).nullable(),
   priceVerified: z.boolean().default(false),
+  sizes: z
+    .array(z.object({ label: z.string().min(1).max(10), price: z.number().min(0).max(10000) }))
+    .max(5)
+    .default([]),
+  sauces: z.array(z.string().max(30)).max(10).default([]),
   image: z.string().max(500).default(""),
   tags: z.array(z.string().max(30)).max(10).default([]),
   spicyLevel: z.union([z.literal(0), z.literal(1), z.literal(2)]).default(0),

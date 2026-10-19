@@ -2,14 +2,34 @@
 
 import React from "react";
 import Image from "next/image";
-import { formatPrice, type MenuItem } from "@/data/menu";
-import { useCart, useLang, useModal } from "./Providers";
+import { MENU, SAUCES, itemImage, type MenuItem } from "@/data/menu";
+import { useCart, useLang, useModal, type CartExtra } from "./Providers";
 
 function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
-  // Fresh state per item — parent renders <ModalContent key={m.id}/> so qty resets.
   const [qty, setQty] = React.useState(1);
+  const [size, setSize] = React.useState<string | undefined>(m.sizes[0]?.label);
+  const [sauces, setSauces] = React.useState<string[]>([]);
+  const [extras, setExtras] = React.useState<CartExtra[]>([]);
   const { add, setOpen } = useCart();
   const { t } = useLang();
+
+  // Add-ons available for this item (supplements category).
+  const addons = React.useMemo(() => MENU.filter((x) => x.category === "supplements"), []);
+
+  const sizePrice =
+    m.sizes.find((s) => s.label === size)?.price ?? m.price ?? 0;
+  const extrasTotal = extras.reduce((s, e) => s + e.price, 0);
+  const unit = sizePrice + extrasTotal;
+
+  const toggleSauce = (id: string) =>
+    setSauces((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  const toggleExtra = (a: MenuItem) =>
+    setExtras((p) =>
+      p.some((e) => e.id === a.id)
+        ? p.filter((e) => e.id !== a.id)
+        : [...p, { id: a.id, name: a.name, price: a.price ?? 0 }]
+    );
 
   return (
     <div
@@ -18,7 +38,7 @@ function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
     >
       <div className="stripes h-1.5 w-full" aria-hidden="true" />
       <div className="relative h-64 sm:h-72">
-        <Image src={m.image} alt={m.name + " — Lab Station"} fill className="object-cover" sizes="100vw" />
+        <Image src={itemImage(m)} alt={m.name + " — Lab Station"} fill className="object-cover" sizes="100vw" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#111214] via-transparent to-transparent" aria-hidden="true" />
         <button
           onClick={onClose}
@@ -32,7 +52,7 @@ function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
           {m.code} {"//"} EXPERIMENT
         </span>
         <span className="price-badge font-display absolute -bottom-2 right-5 grid h-24 w-24 rotate-6 place-items-center rounded-full text-center text-xl">
-          {m.price === null ? <span className="text-xs">LABO</span> : <>{m.price.toFixed(1)}<br /><span className="text-xs">DT</span></>}
+          {m.price === null && !m.sizes.length ? <span className="text-xs">LABO</span> : <>{sizePrice.toFixed(1)}<br /><span className="text-xs">DT</span></>}
         </span>
       </div>
 
@@ -50,15 +70,71 @@ function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
           ))}
         </ul>
 
+        {/* Sizes (L / 2XL) */}
+        {m.sizes.length > 0 && (
+          <section className="mt-6">
+            <h4 className="font-mono-lab text-[11px] tracking-[0.3em] text-neutral-400">TAILLE</h4>
+            <div className="mt-3 flex gap-2" role="group" aria-label="Taille">
+              {m.sizes.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => setSize(s.label)}
+                  aria-pressed={size === s.label}
+                  className={`flex-1 rounded-xl border px-4 py-3 text-left transition ${size === s.label ? "border-[#ffd400] bg-[#ffd400]/10 glow-lab" : "border-[#2e3035] bg-[#121316] hover:border-[#555]"}`}
+                >
+                  <span className="font-display block text-xl text-[#ffd400]">{s.label}</span>
+                  <span className="font-mono-lab text-[11px] text-neutral-400">{s.price.toFixed(1)} DT</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Sauces */}
+        {m.sauces.length > 0 && (
+          <section className="mt-6">
+            <h4 className="font-mono-lab text-[11px] tracking-[0.3em] text-neutral-400">SAUCES {"//"} AU CHOIX</h4>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SAUCES.filter((s) => m.sauces.includes(s.id)).map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => toggleSauce(s.id)}
+                  aria-pressed={sauces.includes(s.id)}
+                  className={`font-mono-lab rounded-full px-4 py-2 text-[11px] tracking-widest transition ${sauces.includes(s.id) ? "bg-[#ffd400] font-bold text-black" : "border border-[#2e3035] bg-[#121316] text-neutral-300 hover:border-[#ffd400]/60"}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Add-ons (supplements) */}
+        {addons.length > 0 && (
+          <section className="mt-6">
+            <h4 className="font-mono-lab text-[11px] tracking-[0.3em] text-neutral-400">SUPPLÉMENTS</h4>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {addons.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => toggleExtra(a)}
+                  aria-pressed={extras.some((e) => e.id === a.id)}
+                  className={`font-mono-lab rounded-full px-3.5 py-1.5 text-[11px] tracking-wider transition ${extras.some((e) => e.id === a.id) ? "bg-white font-bold text-black" : "border border-[#2e3035] bg-[#121316] text-neutral-300 hover:border-[#ffd400]/60"}`}
+                >
+                  {a.name} +{a.price?.toFixed(1)}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <div className="flex items-center rounded-full border border-[#333]" role="group" aria-label="Quantité">
             <button onClick={() => setQty((v) => Math.max(1, v - 1))} className="px-4 py-2.5 text-xl hover:text-[#ffd400]" aria-label="Diminuer">−</button>
             <span className="font-display min-w-8 text-center text-xl" aria-live="polite">{qty}</span>
             <button onClick={() => setQty((v) => Math.min(20, v + 1))} className="px-4 py-2.5 text-xl hover:text-[#ffd400]" aria-label="Augmenter">+</button>
           </div>
-          <p className="font-display text-2xl text-[#ffd400]">
-            {m.price === null ? formatPrice(null) : (m.price * qty).toFixed(1) + " DT"}
-          </p>
+          <p className="font-display text-2xl text-[#ffd400]">{(unit * qty).toFixed(1)} DT</p>
           <span className="font-mono-lab text-[10px] tracking-widest text-neutral-500">
             {m.priceVerified ? "✓ " + t("menu.verify") : "◷ " + t("menu.toconfirm")}
           </span>
@@ -67,16 +143,27 @@ function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <button
             onClick={() => {
-              if (m.price !== null) {
-                add(m, qty);
+              if (m.price !== null || m.sizes.length > 0) {
+                add(
+                  m,
+                  qty,
+                  {
+                    size,
+                    sizePrice: m.sizes.length ? sizePrice : undefined,
+                    sauces: sauces.length ? sauces : undefined,
+                    extras: extras.length ? extras : undefined,
+                  }
+                );
                 onClose();
                 setOpen(true);
               }
             }}
-            disabled={m.price === null}
+            disabled={m.price === null && !m.sizes.length}
             className="btn-lab font-mono-lab flex-1 rounded-full px-6 py-3.5 text-[13px] font-bold tracking-[0.2em] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {m.price === null ? t("menu.toconfirm") : "+ " + t("menu.add") + " — " + (m.price * qty).toFixed(1) + " DT"}
+            {m.price === null && !m.sizes.length
+              ? t("menu.toconfirm")
+              : "+ " + t("menu.add") + " — " + (unit * qty).toFixed(1) + " DT"}
           </button>
         </div>
       </div>

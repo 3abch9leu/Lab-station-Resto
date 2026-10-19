@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { CATEGORIES, MENU, formatPrice, type MenuCategory, type MenuItem } from "@/data/menu";
+import { CATEGORIES, MENU, formatPrice, itemImage, type MenuCategory, type MenuItem } from "@/data/menu";
 import { useCart, useLang, useModal } from "./Providers";
 import { Reveal, SectionHead, Stripes } from "./ui";
 
@@ -50,7 +50,7 @@ export function MenuCard({ item, index }: { item: MenuItem; index: number }) {
       >
         <div className="relative h-52 overflow-hidden bg-gradient-to-br from-[#1a1c1f] to-[#0a0b0c] sm:h-56">
           <Image
-            src={item.image}
+            src={itemImage(item)}
             alt={`${item.name} — Lab Station`}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -67,15 +67,29 @@ export function MenuCard({ item, index }: { item: MenuItem; index: number }) {
             className="price-badge font-display absolute -bottom-1 right-3 grid h-20 w-20 rotate-6 place-items-center rounded-full text-center text-lg leading-none transition-transform duration-300 group-hover:rotate-0 group-hover:scale-110"
             aria-label={`Prix: ${formatPrice(item.price)}`}
           >
-            {item.price === null ? <span className="text-[10px]">LABO</span> : <>{item.price.toFixed(1)}<br /><span className="text-xs">DT</span></>}
+            {item.price === null && !item.sizes.length ? (
+              <span className="text-[10px]">LABO</span>
+            ) : (
+              <>
+                {item.sizes.length > 0 && <span className="text-[9px] font-normal">dès</span>}
+                {(item.sizes.length ? Math.min(...item.sizes.map((s) => s.price)) : item.price)?.toFixed(1)}
+                <br />
+                <span className="text-xs">DT</span>
+              </>
+            )}
           </span>
+          {item.sizes.length > 0 && (
+            <span className="font-mono-lab absolute bottom-3 left-3 rounded bg-black/75 px-2 py-1 text-[10px] tracking-widest text-white backdrop-blur">
+              {item.sizes.map((s) => s.label).join(" / ")}
+            </span>
+          )}
           {item.spicyLevel > 0 && (
             <span className="absolute right-3 top-3 rounded-full bg-red-600/90 px-2.5 py-1 text-[11px] font-bold" aria-label={item.spicyLevel === 2 ? "Super spicy" : "Spicy"}>
               {item.spicyLevel === 2 ? "🔥🔥" : "🔥"}
             </span>
           )}
           {item.tags.includes("smoked") && (
-            <span className="font-mono-lab absolute bottom-3 left-3 rounded bg-[#ffd400] px-2 py-1 text-[10px] font-bold tracking-widest text-black">SMOKED</span>
+            <span className="font-mono-lab absolute left-3 top-3 rounded bg-[#ffd400] px-2 py-1 text-[10px] font-bold tracking-widest text-black">SMOKED</span>
           )}
         </div>
 
@@ -97,7 +111,16 @@ export function MenuCard({ item, index }: { item: MenuItem; index: number }) {
               {t("menu.view")}
             </button>
             <button
-              onClick={() => { if (item.price !== null) { add(item); } else { setSelected(item); } }}
+              onClick={() => {
+                // Items with size variants (L / 2XL) always open the modal so
+                // the customer picks a size before adding.
+                if (item.sizes.length > 0) {
+                  setSelected(item);
+                  return;
+                }
+                if (item.price !== null) add(item);
+                else setSelected(item);
+              }}
               className="btn-lab font-mono-lab flex-1 rounded-full px-4 py-2.5 text-[12px] font-bold tracking-widest"
               aria-label={`Ajouter ${item.name} au panier`}
             >

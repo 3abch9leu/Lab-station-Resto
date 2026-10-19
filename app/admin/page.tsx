@@ -183,6 +183,27 @@ function MenuTab() {
                 ★ SIGNATURE
               </button>
             </div>
+            {m.sizes.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {m.sizes.map((s, si) => (
+                  <label key={s.label} className="flex items-center gap-1 text-[11px] text-neutral-400">
+                    {s.label}
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={s.price}
+                      onChange={(e) => {
+                        const next = m.sizes.map((x, j) => (j === si ? { ...x, price: Number(e.target.value) } : x));
+                        patch(m.id, { sizes: next });
+                      }}
+                      className="w-20 rounded border border-[#333] bg-black px-2 py-1 font-mono-lab text-[11px] outline-none focus:border-[#ffd400]"
+                      aria-label={`Prix ${s.label} — ${m.name}`}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

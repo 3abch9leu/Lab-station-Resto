@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import Image from "next/image";
-import { MENU } from "@/data/menu";
+import { MENU, itemImage } from "@/data/menu";
 import { useCart, useModal } from "./Providers";
 import { Reveal, SectionHead } from "./ui";
 
@@ -20,7 +20,7 @@ export default function Experiment() {
           <Reveal key={m.id} delay={i * 90}>
             <article className="lab-card group relative overflow-hidden rounded-2xl border border-[#222] bg-[#0c0d0f]">
               <div className="relative h-72 sm:h-80">
-                <Image src={m.image} alt={`${m.name} — Lab Station`} fill className="object-cover transition-transform duration-700 group-hover:scale-105" sizes="(max-width:768px) 100vw, 50vw" loading="lazy" />
+                <Image src={itemImage(m)} alt={`${m.name} — Lab Station`} fill className="object-cover transition-transform duration-700 group-hover:scale-105" sizes="(max-width:768px) 100vw, 50vw" loading="lazy" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" aria-hidden />
                 <span className="font-mono-lab absolute left-4 top-4 rounded bg-[#ffd400] px-2.5 py-1 text-[10px] font-bold tracking-[0.25em] text-black">
                   EXP-{String(i + 1).padStart(2, "0")}

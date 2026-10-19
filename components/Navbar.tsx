@@ -134,7 +134,12 @@ export default function Navbar() {
             ))}
           </li>
           <li className="pt-1">
-            <a href={RESTAURANT.phoneHref} className="font-mono-lab block text-sm tracking-widest text-[#ffd400]">{RESTAURANT.phone}</a>
+            {RESTAURANT.phones.map((p, i) => (
+              <span key={p.tel} className="block">
+                {i > 0 && <br />}
+                <a href={`tel:${p.tel}`} className="font-mono-lab text-sm tracking-widest text-[#ffd400]">{p.label}</a>
+              </span>
+            ))}
           </li>
         </ul>
       </div>

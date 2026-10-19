@@ -44,7 +44,12 @@ export default function Footer() {
           <h3 className="font-mono-lab text-[11px] tracking-[0.3em] text-neutral-500">CONTACT</h3>
           <address className="mt-4 space-y-2 text-[15px] not-italic text-neutral-300">
             <p>{RESTAURANT.address.street}<br />{RESTAURANT.address.city}, {RESTAURANT.address.country}</p>
-            <p><a href={RESTAURANT.phoneHref} className="text-[#ffd400] hover:underline">{RESTAURANT.phone}</a></p>
+            <p>{RESTAURANT.phones.map((p, i) => (
+              <span key={p.tel}>
+                {i > 0 && <br />}
+                <a href={`tel:${p.tel}`} className="text-[#ffd400] hover:underline">{p.label}</a>
+              </span>
+            ))}</p>
             <p><a href={`mailto:${RESTAURANT.email}`} className="hover:text-white">{RESTAURANT.email}</a></p>
           </address>
           <div className="mt-4 flex gap-2">

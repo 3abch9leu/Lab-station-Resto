@@ -8,6 +8,11 @@ export type MenuCategory =
 
 export type MenuTag = "signature" | "spicy" | "super-spicy" | "smoked" | "cheesy" | "lab-choice";
 
+export interface MenuSize {
+  label: string; // "L" | "2XL"
+  price: number;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -15,8 +20,12 @@ export interface MenuItem {
   category: MenuCategory;
   description: string;
   ingredients: string[];
-  /** Price in TND. null = "needs restaurant confirmation", never invented. */
+  /** Base price (TND). null = "needs restaurant confirmation", never invented. */
   price: number | null;
+  /** Alternative sizes (e.g. tacos L / 2XL). Empty = single size. */
+  sizes: MenuSize[];
+  /** Sauce choices offered for this item (harissa, mayo, ketchup, salade…). */
+  sauces: string[];
   priceVerified: boolean;
   image: string;
   tags: MenuTag[];
@@ -27,12 +36,23 @@ export interface MenuItem {
 }
 
 /**
- * SOURCE OF TRUTH — current carte provided by the restaurant (2026),
- * cross-checked with the latest indexed public menu.
+ * SOURCE OF TRUTH — carte transcribed from the restaurant's own in-store boards
+ * (photos of "SIGNATURE TACOS" and "SIGNATURE BURGER"), cross-checked with the
+ * restaurant's Facebook menu list.
  *
- * Verified prices carry priceVerified: true.
- * Items without a confirmed price carry price: null and render "—".
+ * The in-store boards are the highest-priority source: every price below was
+ * read directly from them. Items that appear only in the Facebook list keep
+ * their published price. Anything without a published price keeps price: null
+ * and renders "—" (prix à confirmer) — never invented.
  */
+
+// Sauce options the lab offers (from the restaurant).
+export const SAUCES = [
+  { id: "harissa", label: "HARISSA" },
+  { id: "mayo", label: "MAYO" },
+  { id: "ketchup", label: "KETCHUP" },
+  { id: "salade", label: "SALADE" },
+];
 
 // Verified Unsplash food photography (HTTP 200 checked)
 const U = {
@@ -64,19 +84,197 @@ const W = {
   brisketBbq: "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/Hickory_Hillz_BBQ_-_May_2022_-_Sarah_Stierch_05.jpg/960px-Hickory_Hillz_BBQ_-_May_2022_-_Sarah_Stierch_05.jpg",
 };
 
+/**
+ * Local dish photos extracted from the restaurant's own in-store boards
+ * (see scripts/crop-board.mjs → npm run photos:board).
+ * When present these replace the stock photos for that item.
+ */
+export const LOCAL_PHOTOS: Record<string, string> = {};
+
 export const PHOTO_CREDITS =
-  "Photos tacos / viandes : contributeurs Wikimedia Commons (licences CC). Burgers : Unsplash.";
+  "Photos de plats : contributeurs Wikimedia Commons (licences CC) — remplacées par les photos officielles Lab Station dès réception.";
+
+const ALL_SAUCES = SAUCES.map((s) => s.id);
+const TACO_SAUCES = ALL_SAUCES;
 
 export const MENU: MenuItem[] = [
-  // ============ SIGNATURE BURGERS — current carte ============
+  // ================= SIGNATURE TACOS (prix lus sur la board en salle) =================
+  {
+    id: "tacos-classic",
+    name: "TACOS CLASSIC",
+    category: "tacos",
+    description: "Poulet grillé, frites, sauce fromagère.",
+    ingredients: ["Poulet grillé", "Lab sauce", "Spicy sauce", "Oignons caramélisés", "Frites", "Sauce fromagère"],
+    price: 12.9, sizes: [{ label: "L", price: 12.9 }, { label: "2XL", price: 17.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosLondon,
+    tags: ["signature"], spicyLevel: 1, featured: true, available: true, code: "LAB-101",
+  },
+  {
+    id: "tacos-crispy",
+    name: "TACOS CRISPY",
+    category: "tacos",
+    description: "Poulet pané croustillant, frites, fromagère.",
+    ingredients: ["Poulet pané", "Lab sauce", "Spicy sauce", "Sauce fromagère", "Oignons caramélisés"],
+    price: 12.9, sizes: [{ label: "L", price: 12.9 }, { label: "2XL", price: 17.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosMorocco,
+    tags: ["signature"], spicyLevel: 1, available: true, code: "LAB-102",
+  },
+  {
+    id: "tacos-super-spicy",
+    name: "TACOS SUPER SPICY",
+    category: "tacos",
+    description: "Poulet épicé, Super Spicy sauce, niveau feu maximum.",
+    ingredients: ["Poulet épicé", "Super spicy sauce", "Oignons caramélisés", "Frites", "Sauce fromagère"],
+    price: 13.9, sizes: [{ label: "L", price: 13.9 }, { label: "2XL", price: 18.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosPastor,
+    tags: ["spicy", "super-spicy"], spicyLevel: 2, available: true, code: "LAB-104",
+  },
+  {
+    id: "tacos-creamy-mushroom",
+    name: "TACOS CREAMY MUSHROOM",
+    category: "tacos",
+    description: "Poulet à la crème, champignons frais, frites, fromagère.",
+    ingredients: ["Poulet à la crème", "Champignons", "Lab sauce", "Oignons caramélisés", "Frites", "Sauce fromagère"],
+    price: 14.9, sizes: [{ label: "L", price: 14.9 }, { label: "2XL", price: 19.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosOtacos,
+    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-103",
+  },
+  {
+    id: "tacos-full-cheese",
+    name: "TACOS FULL CHEESE",
+    category: "tacos",
+    description: "Triple fromage : cheddar, Gruyère, mozzarella.",
+    ingredients: ["Poulet pané ou grillé", "Lab sauce", "Cheddar", "Gruyère", "Mozzarella", "Frites", "Sauce fromagère"],
+    price: 16.9, sizes: [{ label: "L", price: 16.9 }, { label: "2XL", price: 21.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosCarnitas,
+    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-105",
+  },
+  {
+    id: "tacos-viande-hachee",
+    name: "TACOS VIANDE HACHÉE",
+    category: "tacos",
+    description: "Viande hachée, Lab sauce au poivre, crispy potato.",
+    ingredients: ["Viande hachée", "Lab sauce", "Sauce au poivre", "Spicy sauce", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
+    price: 14.9, sizes: [{ label: "L", price: 14.9 }, { label: "2XL", price: 19.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacos2,
+    tags: ["signature"], spicyLevel: 1, available: true, code: "LAB-107",
+  },
+  {
+    id: "tacos-brisket",
+    name: "TACOS BRISKET LAB",
+    variant: "BRISKET FUMÉ",
+    category: "tacos",
+    description: "Brisket fumé, crispy potato, fromagère onctueuse.",
+    ingredients: ["Viande brisket fumée", "Brisket sauce", "Spicy sauce", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
+    price: 23.9, sizes: [{ label: "L", price: 23.9 }, { label: "2XL", price: 29.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.brisketBbq,
+    tags: ["signature", "smoked", "lab-choice"], spicyLevel: 1, featured: true, available: true, code: "LAB-106",
+  },
+  {
+    id: "tacos-ribs",
+    name: "TACOS TEXAS RIBS",
+    variant: "RIBS FUMÉ",
+    category: "tacos",
+    description: "Ribs fumé, brisket sauce, crispy potato, fromagère.",
+    ingredients: ["Viande ribs fumée", "Brisket sauce", "Spicy sauce", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
+    price: 24.9, sizes: [{ label: "L", price: 24.9 }, { label: "2XL", price: 33.9 }],
+    sauces: TACO_SAUCES, priceVerified: true, image: W.tacosElFlaco,
+    tags: ["signature", "smoked"], spicyLevel: 1, featured: true, available: true, code: "LAB-108",
+  },
+  // ---- Tacos listés sur la carte Facebook du restaurant
+  {
+    id: "tacos-mr-bacon",
+    name: "TACOS MR BACON",
+    category: "tacos",
+    description: "130g de viande hachée, bacon de bœuf, crispy potato.",
+    ingredients: ["Viande hachée 130g", "Bacon de bœuf", "Lab sauce", "Spicy sauce", "Frites", "Crispy potato", "Sauce fromagère"],
+    price: 18.9, sizes: [], sauces: TACO_SAUCES, priceVerified: true, image: W.tacosPanza,
+    tags: ["signature"], spicyLevel: 1, available: true, code: "LAB-109",
+  },
+  {
+    id: "tacos-chicken-parm",
+    name: "TACOS CHICKEN PARMESAN",
+    category: "tacos",
+    description: "Poulet croustillant, sauce parmesan croustillante.",
+    ingredients: ["Poulet croustillant", "Frites", "Lab sauce", "Sauce parmesan croustillante", "Oignons caramélisés"],
+    price: 14.9, sizes: [], sauces: TACO_SAUCES, priceVerified: true, image: W.parm,
+    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-110",
+  },
+
+  // ================= SIGNATURE BURGERS (prix lus sur la board en salle) =================
+  {
+    id: "crispy-chicken",
+    name: "CRISPY CHICKEN",
+    variant: "ORIGINAL OU SPICY",
+    category: "burgers",
+    description: "Poulet crispy ultra-croustillant, sauces Lab & Burger.",
+    ingredients: ["Poulet crispy", "Lab sauce", "Burger sauce", "Gruyère", "Laitue", "Tomate", "Oignon", "Cornichon"],
+    price: 16.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.crispy,
+    tags: ["signature", "lab-choice"], spicyLevel: 1, featured: true, available: true, code: "LAB-001",
+  },
+  {
+    id: "classic",
+    name: "CLASSIC",
+    category: "burgers",
+    description: "Le steak haché juteux, cheddar, sauce burger.",
+    ingredients: ["Steak haché", "Cheddar", "Burger sauce", "Laitue", "Tomate", "Oignon", "Cornichon"],
+    price: 16.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.classic,
+    tags: ["signature"], spicyLevel: 0, featured: true, available: true, code: "LAB-002",
+  },
+  {
+    id: "double",
+    name: "DOUBLE",
+    category: "burgers",
+    description: "Double steak haché, cheddar, sauce burger.",
+    ingredients: ["Double steak haché", "Cheddar", "Burger sauce", "Laitue", "Tomate", "Oignon", "Cornichon"],
+    price: 25.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.double,
+    tags: ["signature"], spicyLevel: 0, featured: true, available: true, code: "LAB-003",
+  },
+  {
+    id: "triple",
+    name: "TRIPLE",
+    category: "burgers",
+    description: "Triple steak haché, cheddar, sauce burger.",
+    ingredients: ["Triple steak haché", "Cheddar", "Burger sauce", "Laitue", "Tomate", "Oignon", "Cornichon"],
+    price: 29.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.meat,
+    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-013",
+  },
+  {
+    id: "scrambled-eggs",
+    name: "SCRAMBLED EGGS",
+    category: "burgers",
+    description: "Steak haché, cheddar, œuf brouillé, Lab sauce.",
+    ingredients: ["Steak haché", "Cheddar", "Lab sauce", "Oignon", "Œuf brouillé"],
+    price: 19.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.classic,
+    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-014",
+  },
+  {
+    id: "mr-bacon",
+    name: "MR BACON",
+    category: "burgers",
+    description: "Steak haché, bacon, cheddar, œuf sauté.",
+    ingredients: ["Steak haché", "Bacon", "Cheddar", "Lab sauce", "Oignon", "Œuf sauté", "Oignons caramélisés"],
+    price: 23.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.texas,
+    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-015",
+  },
+  {
+    id: "texas-ribs",
+    name: "TEXAS RIBS",
+    variant: "RIBS FUMÉ",
+    category: "burgers",
+    description: "Viande ribs fumée, brisket sauce, tapenade.",
+    ingredients: ["Viande ribs fumée", "Lab sauce", "Sauce brisket", "Oignons caramélisés", "Gruyère", "Cheddar", "Crispy potato", "Tapenade"],
+    price: 29.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.texas,
+    tags: ["signature", "smoked", "lab-choice"], spicyLevel: 0, featured: true, available: true, code: "LAB-004",
+  },
   {
     id: "cent-pourcent-meat",
     name: "100% MEAT",
     category: "burgers",
     description: "Triple viande : hachée, brisket, ribs. L'expérience extrême.",
-    ingredients: ["Viande hachée", "Viande brisket", "Viande ribs", "Mozzarella", "Cheddar", "Gruyère", "Oignons caramélisés", "Roquette", "Cornichons", "Tapenade"],
-    price: 39.9, priceVerified: true, image: U.meat,
-    tags: ["signature", "smoked", "cheesy", "lab-choice"], spicyLevel: 0, featured: true, available: true, code: "LAB-005",
+    ingredients: ["Steak haché", "Viande brisket", "Viande ribs", "Gruyère", "Oignons caramélisés", "Roquette", "Cornichons", "Tapenade"],
+    price: 39.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.meat,
+    tags: ["signature", "smoked", "lab-choice"], spicyLevel: 0, featured: true, available: true, code: "LAB-005",
   },
   {
     id: "brisket-lab-burger",
@@ -84,83 +282,63 @@ export const MENU: MenuItem[] = [
     variant: "BRISKET FUMÉ",
     category: "burgers",
     description: "Brisket fumé, triple fromage, crispy potato, tapenade.",
-    ingredients: ["Viande brisket fumée", "Sauce Lab", "Sauce brisket", "Mozzarella", "Gruyère", "Cheddar", "Oignons caramélisés", "Roquette", "Crispy potato", "Tapenade"],
-    price: 26.9, priceVerified: true, image: U.brisket,
+    ingredients: ["Viande brisket fumée", "Lab sauce", "Brisket sauce", "Oignons caramélisés", "Gruyère", "Cheddar", "Roquette", "Crispy potato", "Tapenade"],
+    price: 26.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.brisket,
     tags: ["signature", "smoked", "cheesy"], spicyLevel: 0, featured: true, available: true, code: "LAB-006",
-  },
-  {
-    id: "double",
-    name: "DOUBLE BURGER",
-    category: "burgers",
-    description: "Double viande hachée, cheddar, sauce burger.",
-    ingredients: ["Double viande hachée", "Cheddar", "Sauce burger", "Laitue", "Tomate", "Oignon", "Cornichon"],
-    price: 25.9, priceVerified: true, image: U.double,
-    tags: ["signature"], spicyLevel: 0, featured: true, available: true, code: "LAB-012",
   },
   {
     id: "creamy-mushroom-burger",
     name: "CREAMY MUSHROOM",
     category: "burgers",
     description: "Sauce onctueuse aux champignons blancs, mozzarella.",
-    ingredients: ["Viande hachée", "Sauce Lab", "Sauce brisket", "Mozzarella", "Oignons caramélisés", "Sauce onctueuse aux champignons blancs"],
-    price: 23.9, priceVerified: true, image: U.mushroom,
+    ingredients: ["Steak haché", "Lab sauce", "Sauce brisket", "Mozzarella", "Oignons caramélisés", "Sauce aux champignons blancs"],
+    price: 23.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.mushroom,
     tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-007",
-  },
-  {
-    id: "full-cheese-burger",
-    name: "FULL CHEESE",
-    category: "burgers",
-    description: "Cheddar, Gruyère, double sauce fromagère.",
-    ingredients: ["Viande hachée", "Cheddar", "Gruyère", "Sauce fromagère", "Sauce Lab", "Oignons caramélisés"],
-    price: 21.9, priceVerified: true, image: U.cheese,
-    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-011",
-  },
-  {
-    id: "crispy-chicken",
-    name: "CRISPY CHICKEN",
-    variant: "ORIGINAL / SPICY",
-    category: "burgers",
-    description: "Poulet crispy ultra-croustillant, sauces Lab & Burger.",
-    ingredients: ["Poulet crispy", "Sauce Lab", "Sauce burger", "Gruyère", "Laitue", "Tomate", "Oignon", "Cornichon"],
-    price: 16.9, priceVerified: true, image: U.crispy,
-    tags: ["signature", "lab-choice"], spicyLevel: 1, featured: true, available: true, code: "LAB-001",
-  },
-  // ---- À la carte (pri confirmed where listed, else awaiting confirmation)
-  {
-    id: "texas-ribs",
-    name: "TEXAS RIBS",
-    variant: "RIBS FUMÉ",
-    category: "burgers",
-    description: "Ribs fumé, brisket sauce, cheddar, crispy potato, tapenade.",
-    ingredients: ["Viande ribs fumée", "Lab sauce", "Brisket sauce", "Cheddar", "Oignons caramélisés", "Roquette", "Crispy potato", "Tapenade"],
-    price: 28.9, priceVerified: true, image: U.texas,
-    tags: ["signature", "smoked", "lab-choice"], spicyLevel: 0, featured: true, available: true, code: "LAB-004",
-  },
-  {
-    id: "truffle",
-    name: "TRUFFLE",
-    category: "burgers",
-    description: "Sauce truffette, mozzarella, brisket sauce.",
-    ingredients: ["Steak haché", "Mozzarella", "Sauce brisket", "Sauce truffette", "Oignons caramélisés", "Cornichon"],
-    price: 24.9, priceVerified: true, image: U.truffle,
-    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-008",
   },
   {
     id: "monto-cinto",
     name: "MONTO CINTO",
     category: "burgers",
     description: "Pesto, roquette, parmesan, double mozzarella, crème.",
-    ingredients: ["Steak haché", "Lab sauce", "Pesto", "Roquette", "Parmesan", "Mozzarella", "Tomate", "Crème"],
-    price: 28.9, priceVerified: true, image: U.cheese,
+    ingredients: ["Steak haché", "Lab sauce", "Pesto", "Sauce tomate", "Mozzarella", "Crème", "Roquette", "Parmesan"],
+    price: 28.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.cheese,
     tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-009",
   },
+  {
+    id: "spicy-super-spicy",
+    name: "SPICY OR SUPER SPICY",
+    category: "burgers",
+    description: "Sauce spicy, piment rouge, niveau de feu au choix.",
+    ingredients: ["Steak haché", "Cheddar", "Sauce spicy", "Piment rouge", "Tomate", "Oignon"],
+    price: 19.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.crispy,
+    tags: ["spicy", "super-spicy"], spicyLevel: 2, available: true, code: "LAB-010",
+  },
+  {
+    id: "truffle",
+    name: "TRUFFLE",
+    category: "burgers",
+    description: "Sauce truffe, mozzarella, roquette.",
+    ingredients: ["Steak haché", "Sauce truffe", "Lab sauce", "Mozzarella", "Roquette", "Oignon", "Cornichon"],
+    price: 25.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.truffle,
+    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-008",
+  },
+  {
+    id: "full-cheese-burger",
+    name: "FULL CHEESE",
+    category: "burgers",
+    description: "Cheddar, Gruyère à la mozzarella, sauce fromagère.",
+    ingredients: ["Steak haché", "Cheddar", "Gruyère à la mozzarella", "Lab sauce", "Sauce fromagère", "Oignon caramélisé"],
+    price: 21.9, sizes: [], sauces: ALL_SAUCES, priceVerified: true, image: U.cheese,
+    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-011",
+  },
+  // ---- Autres burgers listés sur la carte Facebook du restaurant
   {
     id: "nashville-hot-chicken",
     name: "NASHVILLE HOT CHICKEN",
     category: "burgers",
     description: "Poulet mariné épicé façon Nashville. Prix à confirmer au labo.",
-    ingredients: ["Poulet Nashville hot", "Sauce Lab"],
-    price: null, priceVerified: false, image: W.nashville,
+    ingredients: ["Poulet Nashville hot", "Lab sauce"],
+    price: null, sizes: [], sauces: ALL_SAUCES, priceVerified: false, image: W.nashville,
     tags: ["signature", "spicy"], spicyLevel: 2, available: true, code: "LAB-016",
   },
   {
@@ -169,159 +347,11 @@ export const MENU: MenuItem[] = [
     category: "burgers",
     description: "Émincé de bœuf, fromage fondant. Prix à confirmer au labo.",
     ingredients: ["Émincé de bœuf", "Fromage fondant"],
-    price: null, priceVerified: false, image: W.philly,
+    price: null, sizes: [], sauces: ALL_SAUCES, priceVerified: false, image: W.philly,
     tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-017",
   },
-  // ---- Previous carte, kept while uncontradicted
-  {
-    id: "classic",
-    name: "CLASSIC",
-    category: "burgers",
-    description: "Le steak haché juteux, cheddar, double sauce Lab + Burger.",
-    ingredients: ["Steak haché", "Cheddar", "Lab sauce", "Burger sauce", "Laitue", "Tomate", "Oignon", "Cornichon"],
-    price: 16.9, priceVerified: true, image: U.classic,
-    tags: ["signature"], spicyLevel: 0, featured: true, available: true, code: "LAB-002",
-  },
-  {
-    id: "burger-lab",
-    name: "BURGER LAB",
-    category: "burgers",
-    description: "La formule originelle du labo : steak, Gruyère, Lab sauce.",
-    ingredients: ["Steak haché", "Gruyère", "Lab sauce", "Oignon", "Cornichon"],
-    price: 19.9, priceVerified: true, image: U.double,
-    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-003",
-  },
-  {
-    id: "spicy-super-spicy",
-    name: "SPICY / SUPER SPICY",
-    category: "burgers",
-    description: "Sauce cheddar rouge, niveau de feu au choix.",
-    ingredients: ["Steak haché", "Cheddar", "Sauce cheddar rouge"],
-    price: 18.9, priceVerified: true, image: U.crispy,
-    tags: ["spicy", "super-spicy"], spicyLevel: 2, available: true, code: "LAB-010",
-  },
-  {
-    id: "triple",
-    name: "TRIPLE",
-    category: "burgers",
-    description: "Triple viande hachée pour les grandes faims du labo.",
-    ingredients: ["Triple viande hachée", "Cheddar", "Burger sauce", "Laitue", "Tomate", "Oignon", "Cornichon"],
-    price: null, priceVerified: false, image: U.meat,
-    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-013",
-  },
-  {
-    id: "scrambled-eggs",
-    name: "SCRAMBLED EGGS",
-    category: "burgers",
-    description: "Viande hachée, cheddar, œuf brouillé, Lab sauce.",
-    ingredients: ["Viande hachée", "Cheddar", "Lab sauce", "Oignon", "Œuf brouillé"],
-    price: null, priceVerified: false, image: U.classic,
-    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-014",
-  },
-  {
-    id: "mr-bacon",
-    name: "MR BACON",
-    category: "burgers",
-    description: "Bacon grillé, cheddar, œuf sauté, Lab sauce.",
-    ingredients: ["Viande hachée", "Cheddar", "Bacon", "Lab sauce", "Oignons", "Œuf sauté"],
-    price: null, priceVerified: false, image: U.texas,
-    tags: ["signature"], spicyLevel: 0, available: true, code: "LAB-015",
-  },
 
-  // ============ SIGNATURE TACOS — current carte, real photos ============
-  {
-    id: "tacos-brisket",
-    name: "TACOS BRISKET LAB",
-    variant: "BRISKET FUMÉ",
-    category: "tacos",
-    description: "Brisket fumé, crispy potato, fromagère onctueuse.",
-    ingredients: ["Viande brisket fumée", "Sauce brisket", "Sauce spicy", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
-    price: 23.9, priceVerified: true, image: W.brisketBbq,
-    tags: ["signature", "smoked", "lab-choice"], spicyLevel: 1, featured: true, available: true, code: "LAB-106",
-  },
-  {
-    id: "tacos-mr-bacon",
-    name: "TACOS MR BACON",
-    category: "tacos",
-    description: "130g de viande hachée, bacon de bœuf, crispy potato.",
-    ingredients: ["Viande hachée 130g", "Bacon de bœuf", "Sauce Lab", "Sauce spicy", "Frites", "Crispy potato", "Sauce fromagère"],
-    price: 18.9, priceVerified: true, image: W.tacosPanza,
-    tags: ["signature"], spicyLevel: 1, featured: true, available: true, code: "LAB-109",
-  },
-  {
-    id: "tacos-creamy-mushroom",
-    name: "TACOS CREAMY MUSHROOM",
-    category: "tacos",
-    description: "Poulet à la crème, champignons frais, frites, fromagère.",
-    ingredients: ["Poulet à la crème", "Champignons frais", "Sauce Lab", "Oignons caramélisés", "Frites", "Sauce fromagère"],
-    price: 14.9, priceVerified: true, image: W.tacosOtacos,
-    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-103",
-  },
-  {
-    id: "tacos-chicken-parm",
-    name: "TACOS CHICKEN PARMESAN",
-    category: "tacos",
-    description: "Poulet croustillant, sauce parmesan croustillante.",
-    ingredients: ["Poulet croustillant", "Frites", "Sauce Lab", "Sauce parmesan croustillante", "Oignons caramélisés"],
-    price: 14.9, priceVerified: true, image: W.parm,
-    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-110",
-  },
-  {
-    id: "tacos-super-spicy",
-    name: "TACOS SUPER SPICY",
-    category: "tacos",
-    description: "Poulet épicé, Super Spicy sauce, niveau feu maximum.",
-    ingredients: ["Poulet épicé", "Sauce super spicy", "Oignons caramélisés", "Frites", "Sauce fromagère"],
-    price: 13.9, priceVerified: true, image: W.tacosPastor,
-    tags: ["spicy", "super-spicy"], spicyLevel: 2, available: true, code: "LAB-104",
-  },
-  {
-    id: "tacos-classic",
-    name: "TACOS CLASSIC",
-    category: "tacos",
-    description: "Poulet grillé, frites, sauce fromagère.",
-    ingredients: ["Poulet grillé", "Sauce Lab", "Sauce spicy", "Oignons caramélisés", "Frites", "Sauce fromagère"],
-    price: 12.9, priceVerified: true, image: W.tacosLondon,
-    tags: ["signature"], spicyLevel: 1, featured: true, available: true, code: "LAB-101",
-  },
-  {
-    id: "tacos-crispy",
-    name: "TACOS CRISPY",
-    category: "tacos",
-    description: "Poulet pané croustillant, frites, fromagère.",
-    ingredients: ["Poulet pané", "Sauce Lab", "Sauce spicy", "Frites", "Sauce fromagère", "Oignons caramélisés"],
-    price: 12.9, priceVerified: true, image: W.tacosMorocco,
-    tags: ["signature"], spicyLevel: 1, available: true, code: "LAB-102",
-  },
-  {
-    id: "tacos-full-cheese",
-    name: "TACOS FULL CHEESE",
-    category: "tacos",
-    description: "Triple fromage : cheddar, Gruyère, mozzarella.",
-    ingredients: ["Poulet pané ou grillé", "Lab sauce", "Cheddar", "Gruyère", "Mozzarella", "Frites", "Sauce fromagère"],
-    price: 15.9, priceVerified: true, image: W.tacosCarnitas,
-    tags: ["signature", "cheesy"], spicyLevel: 0, available: true, code: "LAB-105",
-  },
-  {
-    id: "tacos-viande-hachee",
-    name: "TACOS VIANDE HACHÉE",
-    category: "tacos",
-    description: "Viande hachée, Lab sauce au poivre, crispy potato.",
-    ingredients: ["Viande hachée", "Lab sauce au poivre", "Spicy sauce", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
-    price: 14.9, priceVerified: true, image: W.tacos2,
-    tags: ["signature"], spicyLevel: 1, available: true, code: "LAB-107",
-  },
-  {
-    id: "tacos-ribs",
-    name: "TACOS RIBS FUMÉ",
-    category: "tacos",
-    description: "Ribs fumé, brisket sauce, crispy potato, fromagère.",
-    ingredients: ["Viande ribs fumée", "Brisket sauce", "Spicy sauce", "Oignons caramélisés", "Crispy potato", "Sauce fromagère"],
-    price: 24.9, priceVerified: true, image: W.tacosElFlaco,
-    tags: ["signature", "smoked"], spicyLevel: 1, featured: true, available: true, code: "LAB-108",
-  },
-
-  // ============ SUPPLÉMENTS — current carte ============
+  // ================= SUPPLÉMENTS (prix carte Facebook) =================
   ...(
     [
       ["sup-brisket", "BRISKET FUMÉ", 12.0],
@@ -341,38 +371,39 @@ export const MENU: MenuItem[] = [
     id, name, category: "supplements" as const,
     description: `Supplément ${name.toLowerCase()} — assemblé au labo.`,
     ingredients: [name],
-    price, priceVerified: true,
+    price, sizes: [], sauces: [],
+    priceVerified: true,
     image: U.fries, tags: [] as MenuTag[], spicyLevel: 0 as const,
     available: true, code: `LAB-2${String(i).padStart(2, "0")}`,
   })),
 
-  // ============ SIDES / DRINKS ============
+  // ================= SIDES / DRINKS =================
   {
     id: "side-fries", name: "FRITES LAB", category: "sides",
     description: "Frites maison, assaisonnement secret du labo.",
     ingredients: ["Pommes de terre", "Assaisonnement Lab"],
-    price: 3.0, priceVerified: true, image: U.fries,
+    price: 3.0, sizes: [], sauces: [], priceVerified: true, image: U.fries,
     tags: [], spicyLevel: 0, available: true, code: "LAB-301",
   },
   {
     id: "side-crispy-potato", name: "CRISPY POTATO", category: "sides",
     description: "Pommes de terre crispy, cœur fondant.",
     ingredients: ["Crispy potato", "Sel fumé"],
-    price: 5.0, priceVerified: false, image: U.fries,
+    price: 5.0, sizes: [], sauces: [], priceVerified: false, image: U.fries,
     tags: [], spicyLevel: 0, available: true, code: "LAB-302",
   },
   {
     id: "drink-soda", name: "SODA", category: "drinks",
     description: "Soda frais 33cl.",
     ingredients: ["Soda"],
-    price: 3.0, priceVerified: true, image: U.fries,
+    price: 3.0, sizes: [], sauces: [], priceVerified: true, image: U.fries,
     tags: [], spicyLevel: 0, available: true, code: "LAB-401",
   },
   {
     id: "drink-eau", name: "EAU MINÉRALE", category: "drinks",
     description: "Eau minérale fraîche.",
     ingredients: ["Eau"],
-    price: 1.5, priceVerified: true, image: U.fries,
+    price: 1.5, sizes: [], sauces: [], priceVerified: true, image: U.fries,
     tags: [], spicyLevel: 0, available: true, code: "LAB-402",
   },
 ];
@@ -388,3 +419,13 @@ export const CATEGORIES: { id: MenuCategory | "all"; label: string }[] = [
 
 export const formatPrice = (p: number | null) =>
   p === null ? "—" : `${p.toFixed(1)} DT`;
+
+/** Resolve the display image: official board photo first, stock fallback. */
+export const itemImage = (m: MenuItem) => LOCAL_PHOTOS[m.id] ?? m.image;
+
+/** Lowest price of an item (respecting size variants). */
+export const fromPrice = (m: MenuItem) => {
+  if (m.price !== null) return m.price;
+  if (m.sizes.length) return Math.min(...m.sizes.map((s) => s.price));
+  return null;
+};

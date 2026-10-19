@@ -1,10 +1,21 @@
 import type { MenuItem as DbMenuItem } from "@prisma/client";
-import type { MenuItem, MenuCategory, MenuTag } from "@/data/menu";
+import type { MenuItem, MenuCategory, MenuTag, MenuSize } from "@/data/menu";
 
 const CATEGORIES = ["burgers", "tacos", "supplements", "sides", "drinks", "desserts"] as const;
 
 const asStrings = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+const asSizes = (v: unknown): MenuSize[] => {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x): x is { label: string; price: number } =>
+      !!x &&
+      typeof (x as { label?: unknown }).label === "string" &&
+      typeof (x as { price?: unknown }).price === "number"
+    )
+    .map((s) => ({ label: s.label, price: s.price }));
+};
 
 /** Prisma row → frontend MenuItem (safe against malformed JSON). */
 export function toFrontend(row: DbMenuItem): MenuItem {
@@ -21,6 +32,8 @@ export function toFrontend(row: DbMenuItem): MenuItem {
     ingredients: asStrings(row.ingredients),
     price: row.price,
     priceVerified: row.priceVerified,
+    sizes: asSizes(row.sizes),
+    sauces: asStrings(row.sauces),
     image: row.image,
     tags: asStrings(row.tags) as MenuTag[],
     spicyLevel: spicy as 0 | 1 | 2,
@@ -39,6 +52,8 @@ export function toDb(input: {
   ingredients?: string[];
   price?: number | null;
   priceVerified?: boolean;
+  sizes?: { label: string; price: number }[];
+  sauces?: string[];
   image?: string;
   tags?: string[];
   spicyLevel?: number;
@@ -55,6 +70,8 @@ export function toDb(input: {
     ingredients: input.ingredients ?? [],
     price: input.price ?? null,
     priceVerified: input.priceVerified ?? false,
+    sizes: input.sizes ?? [],
+    sauces: input.sauces ?? [],
     image: input.image ?? "",
     tags: input.tags ?? [],
     spicyLevel: input.spicyLevel ?? 0,

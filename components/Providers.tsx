@@ -18,11 +18,23 @@ function readCart(): CartLine[] {
   try {
     const raw = localStorage.getItem("lab-cart");
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as { id: string; qty: number }[];
+    const parsed = JSON.parse(raw) as {
+      id: string;
+      qty: number;
+      size?: string;
+      sizePrice?: number;
+      sauces?: string[];
+      extras?: CartExtra[];
+    }[];
     return parsed
       .map((p) => {
         const item = MENU.find((m) => m.id === p.id);
-        return item ? { item, qty: Math.max(1, Math.min(20, p.qty)) } : null;
+        if (!item) return null;
+        const options: CartOptions | undefined =
+          p.size || p.sauces?.length || p.extras?.length
+            ? { size: p.size, sizePrice: p.sizePrice, sauces: p.sauces, extras: p.extras }
+            : undefined;
+        return { item, qty: Math.max(1, Math.min(20, p.qty)), options };
       })
       .filter(Boolean) as CartLine[];
   } catch {
@@ -39,10 +51,26 @@ const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: s
 export const useLang = () => useContext(LangCtx);
 
 // ---------- Cart ----------
-export interface CartLine { item: MenuItem; qty: number; note?: string }
+export interface CartExtra { id: string; name: string; price: number }
+export interface CartOptions {
+  size?: string;         // "L" | "2XL"
+  sizePrice?: number;
+  sauces?: string[];     // sauce ids
+  extras?: CartExtra[];
+}
+export interface CartLine {
+  item: MenuItem;
+  qty: number;
+  options?: CartOptions;
+}
+/** Unit price of a line = chosen size price (or base) + extras. */
+export const lineUnitPrice = (l: CartLine) =>
+  (l.options?.sizePrice ?? l.item.price ?? 0) +
+  (l.options?.extras ?? []).reduce((s, e) => s + e.price, 0);
+
 const CartCtx = createContext<{
   lines: CartLine[];
-  add: (item: MenuItem, qty?: number) => void;
+  add: (item: MenuItem, qty?: number, options?: CartOptions) => void;
   remove: (id: string) => void;
   setQty: (id: string, qty: number) => void;
   clear: () => void;
@@ -87,7 +115,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated.current) return;
     try {
-      localStorage.setItem("lab-cart", JSON.stringify(lines.map((l) => ({ id: l.item.id, qty: l.qty }))));
+      localStorage.setItem(
+        "lab-cart",
+        JSON.stringify(
+          lines.map((l) => ({
+            id: l.item.id,
+            qty: l.qty,
+            size: l.options?.size,
+            sizePrice: l.options?.sizePrice,
+            sauces: l.options?.sauces,
+            extras: l.options?.extras,
+          }))
+        )
+      );
     } catch {}
   }, [lines]);
 
@@ -122,19 +162,32 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const t = useCallback((k: string) => STRINGS[lang][k] ?? STRINGS.fr[k] ?? k, [lang]);
 
-  const add = useCallback((item: MenuItem, qty = 1) => {
+  // Lines are keyed by item + chosen options, so "L" and "2XL" (or different
+  // sauces) stay separate lines in the cart.
+  const lineKey = (item: MenuItem, o?: CartOptions) =>
+    [item.id, o?.size ?? "", (o?.sauces ?? []).slice().sort().join("+"), (o?.extras ?? []).map((e) => e.id).sort().join("+")].join("|");
+
+  const add = useCallback((item: MenuItem, qty = 1, options?: CartOptions) => {
+    const key = lineKey(item, options);
     setLines((prev) => {
-      const found = prev.find((l) => l.item.id === item.id);
-      if (found) return prev.map((l) => (l.item.id === item.id ? { ...l, qty: Math.min(20, l.qty + qty) } : l));
-      return [...prev, { item, qty }];
+      const found = prev.find((l) => lineKey(l.item, l.options) === key);
+      if (found) return prev.map((l) => (lineKey(l.item, l.options) === key ? { ...l, qty: Math.min(20, l.qty + qty) } : l));
+      return [...prev, { item, qty, options }];
     });
   }, []);
-  const remove = useCallback((id: string) => setLines((p) => p.filter((l) => l.item.id !== id)), []);
+  const remove = useCallback(
+    (id: string) => setLines((p) => p.filter((l) => lineKey(l.item, l.options) !== id)),
+    []
+  );
   const setQty = useCallback((id: string, qty: number) => {
-    setLines((p) => (qty <= 0 ? p.filter((l) => l.item.id !== id) : p.map((l) => (l.item.id === id ? { ...l, qty } : l))));
+    setLines((p) =>
+      qty <= 0
+        ? p.filter((l) => lineKey(l.item, l.options) !== id)
+        : p.map((l) => (lineKey(l.item, l.options) === id ? { ...l, qty } : l))
+    );
   }, []);
   const clear = useCallback(() => setLines([]), []);
-  const total = useMemo(() => lines.reduce((s, l) => s + (l.item.price ?? 0) * l.qty, 0), [lines]);
+  const total = useMemo(() => lines.reduce((s, l) => s + lineUnitPrice(l) * l.qty, 0), [lines]);
   const count = useMemo(() => lines.reduce((s, l) => s + l.qty, 0), [lines]);
 
   const langVal = useMemo(() => ({ lang, setLang, t }), [lang, t]);

@@ -21,6 +21,8 @@ model MenuItem {
   ingredients   Json     @default("[]")
   price         Float?
   priceVerified Boolean  @default(false)
+  sizes         Json     @default("[]")
+  sauces        Json     @default("[]")
   image         String   @default("")
   tags          Json     @default("[]")
   spicyLevel    Int      @default(0)

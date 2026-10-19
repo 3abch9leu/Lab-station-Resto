@@ -34,9 +34,14 @@ export default function Location() {
             <address className="mt-3 text-lg not-italic leading-relaxed text-neutral-300">
               {RESTAURANT.address.street}<br />
               {RESTAURANT.address.city}, {RESTAURANT.address.country}<br />
-              <a href={RESTAURANT.phoneHref} className="mt-1 inline-block font-display text-2xl tracking-wide text-[#ffd400] hover:underline">
-                {RESTAURANT.phone}
-              </a>
+              {RESTAURANT.phones.map((p, i) => (
+                <span key={p.tel}>
+                  {i > 0 && <br />}
+                  <a href={`tel:${p.tel}`} className="mt-1 inline-block font-display text-2xl tracking-wide text-[#ffd400] hover:underline">
+                    {p.label}
+                  </a>
+                </span>
+              ))}
             </address>
 
             <div className="mt-6">
@@ -51,13 +56,17 @@ export default function Location() {
               </ul>
             </div>
 
-            <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
-              <a href={RESTAURANT.directionsUrl} target="_blank" rel="noopener noreferrer" className="btn-lab font-mono-lab flex-1 rounded-full px-6 py-3.5 text-center text-[13px] font-bold tracking-[0.2em]">
+            <div className="mt-7 flex flex-col gap-2.5">
+              <a href={RESTAURANT.directionsUrl} target="_blank" rel="noopener noreferrer" className="btn-lab font-mono-lab rounded-full px-6 py-3.5 text-center text-[13px] font-bold tracking-[0.2em]">
                 {t("location.directions")} →
               </a>
-              <a href={RESTAURANT.phoneHref} className="btn-ghost font-mono-lab flex-1 rounded-full px-6 py-3.5 text-center text-[13px] font-bold tracking-[0.2em]">
-                {t("location.call")} — {RESTAURANT.phone}
-              </a>
+              <div className="grid grid-cols-2 gap-2.5">
+                {RESTAURANT.phones.map((p) => (
+                  <a key={p.tel} href={`tel:${p.tel}`} className="btn-ghost font-mono-lab rounded-full px-4 py-3.5 text-center text-[12px] font-bold tracking-[0.15em]">
+                    {t("location.call")} {p.label}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </Reveal>

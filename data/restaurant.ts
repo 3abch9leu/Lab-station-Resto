@@ -10,8 +10,15 @@ export const RESTAURANT = {
     plusCode: "V545+79Q",
     full: "Avenue Hédi Nouira, Ariana, Tunisia",
   },
+  // Two landlines published by the restaurant.
+  phones: [
+    { label: "+216 50 708 979", tel: "+21650708979", whatsapp: "21650708979" },
+    { label: "+216 50 708 879", tel: "+21650708879", whatsapp: "21650708879" },
+  ],
   phone: "+216 50 708 979",
   phoneHref: "tel:+21650708979",
+  phone2: "+216 50 708 879",
+  phone2Href: "tel:+21650708879",
   whatsapp: "21650708979",
   email: "labstation.food@gmail.com",
   // Configurable — update when Google listing changes

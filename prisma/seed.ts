@@ -17,6 +17,18 @@ async function main() {
     });
   }
 
+  // ---- Prune items that are no longer on the restaurant's carte
+  // (keeps the DB in sync with data/menu.ts after a carte change).
+  const validIds = new Set(MENU.map((m) => m.id));
+  const orphans = await db.menuItem.findMany({
+    where: { id: { notIn: [...validIds] } },
+    select: { id: true },
+  });
+  for (const o of orphans) {
+    await db.menuItem.delete({ where: { id: o.id } });
+    console.log(`[seed] removed stale item → ${o.id}`);
+  }
+
   // ---- Settings (hours: create-only after first seed so admin edits survive reseeds)
   const hoursJson = HOURS as unknown as Prisma.InputJsonValue;
   await db.setting.upsert({

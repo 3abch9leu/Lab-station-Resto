@@ -2,7 +2,8 @@
 
 import React from "react";
 import Image from "next/image";
-import { CATEGORIES, MENU, formatPrice, itemImage, type MenuCategory, type MenuItem } from "@/data/menu";
+import { CATEGORIES, formatPrice, itemImage, type MenuCategory, type MenuItem } from "@/data/menu";
+import { useLiveMenu } from "@/hooks/useLiveMenu";
 import { useCart, useLang, useModal } from "./Providers";
 import { Reveal, SectionHead, Stripes } from "./ui";
 
@@ -138,25 +139,11 @@ export default function MenuSection() {
   const [cat, setCat] = React.useState<Filter>("all");
   const [tag, setTag] = React.useState<TagFilter>("all");
   const [q, setQ] = React.useState("");
-  // Live menu from the backend, static verified data as instant fallback.
-  const [remote, setRemote] = React.useState<MenuItem[] | null>(null);
-
-  React.useEffect(() => {
-    let alive = true;
-    fetch("/api/menu", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { items?: MenuItem[] } | null) => {
-        if (alive && d && Array.isArray(d.items) && d.items.length > 0) setRemote(d.items);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // Live menu: API (real DB) → static verified data → demo overrides.
+  const { items: allItems } = useLiveMenu();
 
   const items = React.useMemo(() => {
-    const base = remote ?? MENU;
-    return base.filter((m) => {
+    return allItems.filter((m) => {
       if (cat !== "all" && m.category !== cat) return false;
       if (tag === "spicy" && !(m.tags.includes("spicy") || m.tags.includes("super-spicy"))) return false;
       if (tag === "signature" && !m.tags.includes("signature")) return false;
@@ -168,7 +155,7 @@ export default function MenuSection() {
       }
       return true;
     });
-  }, [cat, tag, q, remote]);
+  }, [cat, tag, q, allItems]);
 
   return (
     <section id="menu" className="relative z-10 mx-auto max-w-7xl scroll-mt-24 px-4 py-20 sm:px-6" aria-label="Menu Lab Station">

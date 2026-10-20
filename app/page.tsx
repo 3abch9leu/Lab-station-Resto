@@ -19,6 +19,7 @@ import Magnetic from "@/components/Magnetic";
 import Tunnel from "@/components/Tunnel";
 import ScrollProgress from "@/components/ScrollProgress";
 import PromoBanner from "@/components/PromoBanner";
+import ShareMenu from "@/components/ShareMenu";
 import { useCart } from "@/components/Providers";
 
 const LabScene = dynamic(() => import("@/components/LabScene"), { ssr: false });
@@ -62,6 +63,7 @@ export default function HomePage() {
       <div aria-hidden="true" className="grain pointer-events-none fixed inset-0 z-[65]" />
       <Navbar />
       <PromoBanner />
+      <ShareMenu />
       <main className="relative">
         <Hero explodeRef={explodeRef} />
         <MenuSection />

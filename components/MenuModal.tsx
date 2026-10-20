@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { MENU, SAUCES, itemImage, type MenuItem } from "@/data/menu";
 import { useCart, useLang, useModal, type CartExtra } from "./Providers";
+import { shareWhatsApp } from "./ShareMenu";
 
 function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
   const [qty, setQty] = React.useState(1);
@@ -164,6 +165,16 @@ function ModalContent({ m, onClose }: { m: MenuItem; onClose: () => void }) {
             {m.price === null && !m.sizes.length
               ? t("menu.toconfirm")
               : "+ " + t("menu.add") + " — " + (unit * qty).toFixed(1) + " DT"}
+          </button>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/#menu`;
+              shareWhatsApp(url, `🍔 ${m.name} — LAB STATION Ariana`);
+            }}
+            className="font-mono-lab rounded-full border border-[#2e3035] px-5 py-3.5 text-[12px] tracking-widest text-neutral-300 transition hover:border-[#25D366] hover:text-white"
+            aria-label={`Partager ${m.name} sur WhatsApp`}
+          >
+            PARTAGER
           </button>
         </div>
       </div>

@@ -72,6 +72,16 @@ export async function destroySession() {
   jar.delete(SESSION_COOKIE);
 }
 
+/** True when a database is reachable. Used to detect demo deployments. */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  try {
+    await db.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Returns the logged-in admin user, or null. Cleans up expired sessions. */
 export async function requireAdmin() {
   const jar = await cookies();

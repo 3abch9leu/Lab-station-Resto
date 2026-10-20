@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { destroySession, requireAdmin } from "@/lib/auth";
+import { destroySession, requireAdmin, isDatabaseAvailable } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +11,10 @@ export async function POST() {
 }
 
 export async function GET() {
-  let admin = null;
-  try {
-    admin = await requireAdmin();
-  } catch {
-    return NextResponse.json({ auth: false, demo: true }, { status: 401 });
-  }
-  if (!admin) return NextResponse.json({ auth: false }, { status: 401 });
-  return NextResponse.json({ auth: true, username: admin.username });
+  const admin = await requireAdmin().catch(() => null);
+  if (admin) return NextResponse.json({ auth: true, username: admin.username });
+  // No session — report whether a database exists at all, so the dashboard
+  // can open in demo mode on deployments without one.
+  const hasDb = await isDatabaseAvailable();
+  return NextResponse.json({ auth: false, demo: !hasDb }, { status: 401 });
 }

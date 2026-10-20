@@ -2,8 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import type { MenuItem } from "@/data/menu";
+import { MENU, type MenuItem } from "@/data/menu";
 import { HOURS as STATIC_HOURS, type DayHours } from "@/data/hours";
+import { loadDemo, saveDemo, applyDemo } from "@/lib/demo-store";
 
 interface OrderRow {
   id: string;
@@ -26,21 +27,26 @@ async function api(path: string, init?: RequestInit) {
   return data as Record<string, unknown>;
 }
 
-function OrdersTab() {
+function OrdersTab({ demo }: { demo: boolean }) {
   const [orders, setOrders] = React.useState<OrderRow[]>([]);
   const [err, setErr] = React.useState("");
 
   const load = React.useCallback(() => {
+    if (demo) {
+      setErr("");
+      setOrders([]);
+      return;
+    }
     api("/api/orders?limit=50")
       .then((d) => setOrders((d.orders as OrderRow[]) ?? []))
       .catch((e: Error) => setErr(e.message));
-  }, []);
+  }, [demo]);
 
   React.useEffect(() => {
-    load();
+    if (demo) return;
     const id = window.setInterval(load, 15000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, demo]);
 
   const setStatus = (id: string, status: string) => {
     api(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify({ status }) })
@@ -52,7 +58,7 @@ function OrdersTab() {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="font-mono-lab text-xs tracking-[0.3em] text-neutral-400">
-          COMMANDES ({orders.length}) // AUTO-REFRESH 15s
+          COMMANDES ({orders.length}) {demo ? "// DÉMO — ACTIVE APRÈS BRANCHEMENT DE LA BASE" : "// AUTO-REFRESH 15s"}
         </h2>
         <button onClick={load} className="font-mono-lab rounded-full border border-[#333] px-4 py-1.5 text-[11px] tracking-widest hover:border-[#ffd400] hover:text-[#ffd400]">
           RAFRAÎCHIR
@@ -60,7 +66,13 @@ function OrdersTab() {
       </div>
       {err && <p className="mt-2 text-sm text-red-400" role="alert">{err}</p>}
       <div className="mt-4 grid gap-3">
-        {orders.length === 0 && <p className="rounded-xl border border-dashed border-[#333] p-8 text-center text-neutral-400">Aucune commande pour le moment.</p>}
+        {orders.length === 0 && (
+          <p className="rounded-xl border border-dashed border-[#333] p-8 text-center text-neutral-400">
+            {demo
+              ? "Les commandes en temps réel s'afficheront ici une fois la base de données connectée (déploiement en 2 minutes sur Vercel + Neon/Supabase)."
+              : "Aucune commande pour le moment."}
+          </p>
+        )}
         {orders.map((o) => (
           <div key={o.id} className="rounded-xl border border-[#26282c] bg-[#101112] p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -95,23 +107,35 @@ function OrdersTab() {
   );
 }
 
-function MenuTab() {
+function MenuTab({ demo }: { demo: boolean }) {
   const [items, setItems] = React.useState<MenuItem[]>([]);
   const [err, setErr] = React.useState("");
   const [msg, setMsg] = React.useState("");
   const [draft, setDraft] = React.useState({ id: "", name: "", category: "burgers", price: "" });
 
   const load = React.useCallback(() => {
+    if (demo) {
+      setItems(applyDemo(MENU));
+      return;
+    }
     api("/api/admin/menu")
       .then((d) => setItems((d.items as MenuItem[]) ?? []))
       .catch((e: Error) => setErr(e.message));
-  }, []);
+  }, [demo]);
 
   React.useEffect(() => {
-    load();
+    // Deferred so state updates never happen synchronously inside the effect.
+    queueMicrotask(load);
   }, [load]);
 
   const patch = (id: string, body: object) => {
+    if (demo) {
+      const d = loadDemo();
+      d.overrides[id] = { ...(d.overrides[id] || {}), ...(body as Partial<MenuItem>) };
+      saveDemo(d);
+      setItems(applyDemo(MENU));
+      return;
+    }
     api(`/api/admin/menu/${id}`, { method: "PATCH", body: JSON.stringify(body) })
       .then((d) => setItems((p) => p.map((m) => (m.id === id ? (d.item as MenuItem) : m))))
       .catch((e: Error) => setErr(e.message));
@@ -120,10 +144,38 @@ function MenuTab() {
   const create = (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
+    const id = draft.id.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    if (demo) {
+      const d = loadDemo();
+      d.created = [
+        ...d.created.filter((x) => x.id !== id),
+        {
+          id,
+          name: draft.name.trim().toUpperCase(),
+          category: draft.category as MenuItem["category"],
+          description: "",
+          ingredients: [],
+          price: draft.price === "" ? null : Number(draft.price),
+          priceVerified: draft.price !== "",
+          sizes: [],
+          sauces: [],
+          image: MENU[0].image,
+          tags: [],
+          spicyLevel: 0,
+          available: true,
+          code: "LAB-NEW",
+        },
+      ];
+      saveDemo(d);
+      setMsg("Item créé (démo locale).");
+      setDraft({ id: "", name: "", category: "burgers", price: "" });
+      load();
+      return;
+    }
     api("/api/admin/menu", {
       method: "POST",
       body: JSON.stringify({
-        id: draft.id.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-"),
+        id,
         name: draft.name.trim().toUpperCase(),
         category: draft.category,
         price: draft.price === "" ? null : Number(draft.price),
@@ -141,6 +193,14 @@ function MenuTab() {
 
   const remove = (id: string) => {
     if (!window.confirm(`Supprimer ${id} ?`)) return;
+    if (demo) {
+      const d = loadDemo();
+      d.deleted = [...new Set([...d.deleted, id])];
+      d.created = d.created.filter((x) => x.id !== id);
+      saveDemo(d);
+      setItems(applyDemo(MENU));
+      return;
+    }
     api(`/api/admin/menu/${id}`, { method: "DELETE" })
       .then(() => setItems((p) => p.filter((m) => m.id !== id)))
       .catch((e: Error) => setErr(e.message));
@@ -211,7 +271,7 @@ function MenuTab() {
   );
 }
 
-function SettingsTab() {
+function SettingsTab({ demo }: { demo: boolean }) {
   const [hours, setHours] = React.useState<DayHours[]>(STATIC_HOURS);
   const [promo, setPromo] = React.useState({ active: false, title: "", text: "" });
   const [restaurant, setRestaurant] = React.useState({ rating: 4.5, reviewCount: 2394 });
@@ -230,6 +290,13 @@ function SettingsTab() {
   }, []);
 
   const save = (key: string, value: unknown) => {
+    if (demo) {
+      const d = loadDemo();
+      d.settings = { ...d.settings, [key]: value };
+      saveDemo(d);
+      setMsg(`${key} sauvegardé ✓ (démo locale)`);
+      return;
+    }
     api("/api/settings", { method: "PUT", body: JSON.stringify({ key, value }) })
       .then(() => setMsg(`${key} sauvegardé ✓`))
       .catch((e: Error) => setMsg(`Erreur: ${e.message}`));
@@ -283,16 +350,30 @@ function SettingsTab() {
 
 export default function AdminPage() {
   const [authed, setAuthed] = React.useState<boolean | null>(null);
+  const [demo, setDemo] = React.useState(false);
   const [user, setUser] = React.useState("");
   const [pw, setPw] = React.useState("");
   const [err, setErr] = React.useState("");
   const [tab, setTab] = React.useState<"orders" | "menu" | "settings">("orders");
 
   React.useEffect(() => {
-    api("/api/admin/session")
-      .then((d) => {
-        setAuthed(true);
-        setUser(String(d.username ?? ""));
+    fetch("/api/admin/session")
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        // No database on this deployment → open in demo mode (no login wall,
+        // everything stored in the browser) so the dashboard is explorable.
+        if (r.status === 503 || (r.status === 401 && d.demo)) {
+          setDemo(true);
+          setAuthed(true);
+          setUser("démo");
+          return;
+        }
+        if (r.ok) {
+          setAuthed(true);
+          setUser(String(d.username ?? ""));
+          return;
+        }
+        setAuthed(false);
       })
       .catch(() => setAuthed(false));
   }, []);
@@ -310,6 +391,11 @@ export default function AdminPage() {
   };
 
   const logout = () => {
+    if (demo) {
+      setAuthed(false);
+      setDemo(false);
+      return;
+    }
     api("/api/admin/session", { method: "POST" }).finally(() => {
       setAuthed(false);
       setUser("");
@@ -349,11 +435,21 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      {demo && (
+        <div className="mb-6 rounded-xl border border-[#ffd400]/50 bg-[#ffd400]/10 p-4" role="status">
+          <p className="font-mono-lab text-[11px] tracking-[0.2em] text-[#ffd400]">MODE DÉMO — AUCUNE BASE DE DONNÉES SUR CE DÉPLOIEMENT</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            Les modifications que vous faites ici sont stockées dans ce navigateur et s&apos;appliquent
+            immédiatement au site public (ouvre-le dans un autre onglet pour voir). Avec une base de
+            données réelle, tout est sauvegardé pour de vrai et accessible depuis n&apos;importe quel appareil.
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl sm:text-5xl">LAB <span className="text-[#ffd400]">ADMIN</span> <span className="font-mono-lab align-middle text-xs text-neutral-500">{user}</span></h1>
         <div className="flex gap-2">
           <Link href="/" className="btn-ghost font-mono-lab rounded-full px-6 py-2.5 text-xs font-bold tracking-widest">VOIR LE SITE</Link>
-          <button onClick={logout} className="font-mono-lab rounded-full border border-red-900 px-6 py-2.5 text-xs tracking-widest text-red-400 hover:bg-red-950">SORTIR</button>
+          <button onClick={logout} className="font-mono-lab rounded-full border border-red-900 px-6 py-2.5 text-xs tracking-widest text-red-400 hover:bg-red-950">{demo ? "QUITTER" : "SORTIR"}</button>
         </div>
       </div>
 
@@ -366,9 +462,9 @@ export default function AdminPage() {
       </div>
 
       <div className="mt-6">
-        {tab === "orders" && <OrdersTab />}
-        {tab === "menu" && <MenuTab />}
-        {tab === "settings" && <SettingsTab />}
+        {tab === "orders" && <OrdersTab demo={demo} />}
+        {tab === "menu" && <MenuTab demo={demo} />}
+        {tab === "settings" && <SettingsTab demo={demo} />}
       </div>
     </main>
   );

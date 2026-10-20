@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { RESTAURANT } from "@/data/restaurant";
 
-const display = Anton({ variable: "--font-display", subsets: ["latin"], weight: "400", display: "swap" });
-const body = Inter({ variable: "--font-body", subsets: ["latin"], display: "swap" });
-const mono = JetBrains_Mono({ variable: "--font-mono-lab", subsets: ["latin"], display: "swap" });
+// NOTE: fonts are loaded at RUNTIME via <link> instead of next/font/google.
+// next/font downloads the font binaries at BUILD time, so a deploy fails
+// whenever Google Fonts is unreachable (firewalls, CI, offline builds).
+// Runtime loading keeps every build green and still serves the brand type.
+const FONT_HREF =
+  "https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://labstation-ariana.tn"),
@@ -70,8 +72,11 @@ const JSON_LD = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}>
+    <html lang="fr" className="h-full antialiased">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href={FONT_HREF} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       </head>
       <body className="carbon min-h-full">
